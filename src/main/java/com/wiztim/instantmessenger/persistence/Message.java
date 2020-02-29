@@ -11,4 +11,5 @@ import java.util.UUID;
 @AllArgsConstructor
 public class Message {
     private UUID id;
+    private String content;
 }
