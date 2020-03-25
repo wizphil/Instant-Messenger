@@ -1,4 +1,4 @@
-package com.wiztim.instantmessenger;
+package com.wiztim.instantmessenger.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,7 +13,7 @@ import static springfox.documentation.builders.PathSelectors.regex;
 
 @Configuration
 @EnableSwagger2
-public class SwaggerConfig {
+public class SwaggerConfiguration {
 
     private ApiInfo apiInfo() {
         return new ApiInfoBuilder().title("Instant-Messenger")
