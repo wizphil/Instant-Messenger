@@ -20,7 +20,7 @@ public class UserStatus {
 
     public static UserStatus offlineNow() {
         return UserStatus.builder()
-                .status(Status.OFFLINE)
+                .status(Status.Offline)
                 .time(new Date().getTime())
                 .build();
     }

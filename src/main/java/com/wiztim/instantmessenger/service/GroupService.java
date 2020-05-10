@@ -1,6 +1,6 @@
 package com.wiztim.instantmessenger.service;
 
-import com.wiztim.instantmessenger.dto.UserLeftGroupDTO;
+import com.wiztim.instantmessenger.dto.GroupUserDTO;
 import com.wiztim.instantmessenger.exceptions.DuplicateEntityException;
 import com.wiztim.instantmessenger.exceptions.GroupNotFoundException;
 import com.wiztim.instantmessenger.exceptions.InvalidEntityException;
@@ -9,6 +9,7 @@ import com.wiztim.instantmessenger.exceptions.RepositoryException;
 import com.wiztim.instantmessenger.exceptions.UserNotInGroupException;
 import com.wiztim.instantmessenger.persistence.Group;
 import com.wiztim.instantmessenger.repository.GroupRepository;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Slf4j
+@Setter
 @Component
 public class GroupService {
 
@@ -104,13 +106,13 @@ public class GroupService {
             throw new RepositoryException(e);
         }
 
-        UserLeftGroupDTO userLeftGroupDTO = UserLeftGroupDTO.builder()
+        GroupUserDTO groupUserDTO = GroupUserDTO.builder()
                 .groupId(group.getId())
                 .userId(userId)
                 .build();
 
         for (UUID onlineUserId : onlineUserIds) {
-            rabbitMQService.publishUserRemovedFromGroup(onlineUserId, userLeftGroupDTO);
+            rabbitMQService.publishUserRemovedFromGroup(onlineUserId, groupUserDTO);
         }
     }
 

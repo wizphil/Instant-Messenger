@@ -28,6 +28,10 @@ public class User {
                 .build();
     }
 
+    public static UserDTO toUserDTO(User user) {
+        return toUserDTO(user, UserStatus.offlineNow());
+    }
+
     public static UserInfoDTO toUserInfoDTO(User user) {
         return UserInfoDTO.builder()
                 .id(user.getId())

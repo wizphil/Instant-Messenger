@@ -29,13 +29,13 @@ public class MessageController implements IMessageController {
     }
 
     @Override
-    @PostMapping("/{fromUserId}/userId/{toUserId}")
+    @PostMapping("from/{fromUserId}/toUser/{toUserId}")
     public void sendIsTypingToUser(@PathVariable("fromUserId") UUID fromUserId, @PathVariable("toUserId") UUID toUserId) {
         messageService.sendIsTypingToUser(fromUserId, toUserId);
     }
 
     @Override
-    @PostMapping("/{fromUserId}/groupId/{toGroupId}")
+    @PostMapping("from/{fromUserId}/toGroup/{toGroupId}")
     public void sendIsTypingToGroup(@PathVariable("fromUserId") UUID fromUserId, @PathVariable("toGroupId") UUID toGroupId) {
         messageService.sendIsTypingToGroup(fromUserId, toGroupId);
     }

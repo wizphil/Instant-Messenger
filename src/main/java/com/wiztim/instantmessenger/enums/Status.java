@@ -1,7 +1,12 @@
 package com.wiztim.instantmessenger.enums;
 
 public enum Status {
-    AVAILABLE,
-    AWAY,
-    OFFLINE
+    Offline,
+    Available,
+    Away,
+    BRB,
+    Busy,
+    InAMeeting,
+    DoNotDisturb,
+    Invisible
 }

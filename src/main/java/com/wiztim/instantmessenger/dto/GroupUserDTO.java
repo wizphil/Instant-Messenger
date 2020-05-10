@@ -11,7 +11,7 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserLeftGroupDTO {
-    UUID groupId;
+public class GroupUserDTO {
     UUID userId;
+    UUID groupId;
 }

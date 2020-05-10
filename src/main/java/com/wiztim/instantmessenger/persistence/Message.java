@@ -18,5 +18,5 @@ public class Message {
     @NonNull private UUID from;
     @NonNull private UUID to;
     @NonNull private String content;
-    private long date;
+    private long time;
 }

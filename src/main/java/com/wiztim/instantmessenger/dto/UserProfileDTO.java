@@ -13,8 +13,9 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserUpdateDTO {
+public class UserProfileDTO {
     private UUID id;
     private UserInfo userInfo;
     private UserSettings userSettings;
+    private boolean enabled;
 }

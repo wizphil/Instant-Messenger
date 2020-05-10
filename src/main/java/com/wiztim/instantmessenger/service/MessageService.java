@@ -1,5 +1,6 @@
 package com.wiztim.instantmessenger.service;
 
+import com.wiztim.instantmessenger.dto.GroupUserDTO;
 import com.wiztim.instantmessenger.dto.MessageDTO;
 import com.wiztim.instantmessenger.exceptions.DuplicateEntityException;
 import com.wiztim.instantmessenger.exceptions.InvalidEntityException;
@@ -9,6 +10,7 @@ import com.wiztim.instantmessenger.exceptions.RepositoryException;
 import com.wiztim.instantmessenger.persistence.Group;
 import com.wiztim.instantmessenger.persistence.Message;
 import com.wiztim.instantmessenger.repository.MessageRepository;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -18,6 +20,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Component
+@Setter
 @Slf4j
 public class MessageService {
     @Autowired
@@ -83,7 +86,7 @@ public class MessageService {
             return;
         }
 
-        rabbitMQService.publishIsTypingPing(toUserId, fromUserId);
+        rabbitMQService.publishUserTypingPing(toUserId, fromUserId);
     }
 
     public void sendIsTypingToGroup(UUID fromUserId, UUID toGroupId) {
@@ -96,13 +99,17 @@ public class MessageService {
             return;
         }
 
-        // make sure group exists
         Group group = groupService.validateAndGetGroup(toGroupId);
+
+        GroupUserDTO groupUserDTO = GroupUserDTO.builder()
+                .userId(fromUserId)
+                .groupId(toGroupId)
+                .build();
 
         List<UUID> onlineUserIds = userService.getOnlineUserIds(group.getUserIds());
         onlineUserIds.remove(fromUserId);
         for (UUID userId : onlineUserIds) {
-            rabbitMQService.publishIsTypingPing(userId, fromUserId);
+            rabbitMQService.publishGroupTypingPing(userId, groupUserDTO);
         }
     }
 
@@ -112,7 +119,7 @@ public class MessageService {
                 .from(messageDTO.getFrom())
                 .to(messageDTO.getTo())
                 .content(messageDTO.getContent())
-                .date(messageDTO.getTime())
+                .time(messageDTO.getTime())
                 .build();
 
         // surely this can't happen

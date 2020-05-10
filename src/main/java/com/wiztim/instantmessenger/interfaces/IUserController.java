@@ -1,7 +1,7 @@
 package com.wiztim.instantmessenger.interfaces;
 
 import com.wiztim.instantmessenger.dto.UserDTO;
-import com.wiztim.instantmessenger.dto.UserUpdateDTO;
+import com.wiztim.instantmessenger.dto.UserProfileDTO;
 import com.wiztim.instantmessenger.persistence.user.UserInfo;
 import com.wiztim.instantmessenger.enums.Status;
 import com.wiztim.instantmessenger.persistence.user.User;
@@ -14,7 +14,7 @@ import java.util.UUID;
 public interface IUserController {
     User createUser(@RequestBody UserInfo userInfo);
 
-    void updateUser(@RequestBody UserUpdateDTO userUpdateDTO);
+    void updateUserProfile(@RequestBody UserProfileDTO userProfileDTO);
 
     User getUser(@PathVariable("id") UUID id);
 

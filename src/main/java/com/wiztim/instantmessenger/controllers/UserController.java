@@ -1,7 +1,7 @@
 package com.wiztim.instantmessenger.controllers;
 
 import com.wiztim.instantmessenger.dto.UserDTO;
-import com.wiztim.instantmessenger.dto.UserUpdateDTO;
+import com.wiztim.instantmessenger.dto.UserProfileDTO;
 import com.wiztim.instantmessenger.persistence.user.UserInfo;
 import com.wiztim.instantmessenger.enums.Status;
 import com.wiztim.instantmessenger.interfaces.IUserController;
@@ -35,8 +35,8 @@ public class UserController implements IUserController {
 
     @Override
     @PutMapping
-    public void updateUser(@RequestBody UserUpdateDTO userUpdateDTO) {
-        userService.updateUser(userUpdateDTO);
+    public void updateUserProfile(@RequestBody UserProfileDTO userProfileDTO) {
+        userService.updateUserProfile(userProfileDTO);
     }
 
     @Override
@@ -52,7 +52,7 @@ public class UserController implements IUserController {
     }
 
     @Override
-    @GetMapping
+    @GetMapping("/info")
     public Collection<UserDTO> getAllUserInfo() {
         return userService.getUserDTOs();
     }

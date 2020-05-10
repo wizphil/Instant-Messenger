@@ -6,6 +6,7 @@ import com.wiztim.instantmessenger.persistence.user.User;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -18,6 +19,14 @@ public class UserRepository {
     public User get(UUID id) {
         // TODO if missing from cache, fetch from db... once it's added
         return userCache.get(id);
+    }
+
+    public User getByUsername(String username) {
+        return userCache.values()
+                .stream()
+                .filter(user -> user.getUserInfo().getUsername().equals(username))
+                .findFirst()
+                .orElse(null);
     }
 
     public void updateUser(User user) {

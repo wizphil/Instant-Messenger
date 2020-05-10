@@ -1,6 +1,5 @@
 package com.wiztim.instantmessenger.dto;
 
-import com.wiztim.instantmessenger.persistence.user.User;
 import com.wiztim.instantmessenger.persistence.user.UserInfo;
 import com.wiztim.instantmessenger.persistence.user.UserStatus;
 import lombok.AllArgsConstructor;

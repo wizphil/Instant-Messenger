@@ -1,7 +1,7 @@
 package com.wiztim.instantmessenger.service;
 
 import com.wiztim.instantmessenger.dto.UserDTO;
-import com.wiztim.instantmessenger.dto.UserUpdateDTO;
+import com.wiztim.instantmessenger.dto.UserProfileDTO;
 import com.wiztim.instantmessenger.exceptions.UserNotFoundException;
 import com.wiztim.instantmessenger.persistence.user.UserInfo;
 import com.wiztim.instantmessenger.dto.UserStatusDTO;
@@ -11,16 +11,17 @@ import com.wiztim.instantmessenger.exceptions.DisabledEntityException;
 import com.wiztim.instantmessenger.exceptions.InvalidEntityException;
 import com.wiztim.instantmessenger.exceptions.RepositoryException;
 import com.wiztim.instantmessenger.exceptions.UserAlreadyEnabledException;
-import com.wiztim.instantmessenger.exceptions.UserAlreadyDisabledException;
+import com.wiztim.instantmessenger.exceptions.UserDisabledException;
 import com.wiztim.instantmessenger.persistence.user.User;
 import com.wiztim.instantmessenger.persistence.user.UserSettings;
 import com.wiztim.instantmessenger.persistence.user.UserStatus;
 import com.wiztim.instantmessenger.repository.UserRepository;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -30,6 +31,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
+@Setter
 @Component
 public class UserService {
 
@@ -40,11 +42,23 @@ public class UserService {
     private RabbitMQService rabbitMQService;
 
     private final Map<UUID, UserDTO> userDtoCache = new HashMap<>();
+    // TODO create session cache for rabbitmq connections
+
+    public User createUser(String username) {
+        UserInfo userInfo = UserInfo.builder()
+                .username(username)
+                .build();
+
+        return createUser(userInfo);
+    }
 
     public User createUser(UserInfo userInfo) {
         validateUserInfo(userInfo);
-        if (userInfo.getFullName() == null) {
-            userInfo.setFullName(userInfo.getUsername());
+        if (userInfo.getFullname() == null) {
+            userInfo.setFullname(userInfo.getUsername());
+        }
+        if (userInfo.getExtension() == null) {
+            userInfo.setExtension("");
         }
 
         // check if user with username already exists
@@ -71,7 +85,7 @@ public class UserService {
         }
 
         // update the cache, we have a new user!
-        userDtoCache.put(user.getId(), User.toUserDTO(user, UserStatus.offlineNow()));
+        userDtoCache.put(user.getId(), User.toUserDTO(user));
 
         // let clients know a new user has been made
         rabbitMQService.publishUser(user);
@@ -93,8 +107,8 @@ public class UserService {
 
     // When a user logs in, they need the entire list of enabled users with their status
     // We trust that the cache is accurate and up to date
-    public Collection<UserDTO> getUserDTOs() {
-        return userDtoCache.values();
+    public List<UserDTO> getUserDTOs() {
+        return new ArrayList<>(userDtoCache.values());
     }
 
     public UserDTO getUserDTO(String username) {
@@ -110,16 +124,21 @@ public class UserService {
         return userDtoCache.get(id);
     }
 
-    public void updateUser(UserUpdateDTO userUpdateDTO) {
-        UserInfo userInfo = userUpdateDTO.getUserInfo();
-        UserSettings userSettings = userUpdateDTO.getUserSettings();
+    public void updateUserProfile(UserProfileDTO userProfileDTO) {
+        UserInfo userInfo = userProfileDTO.getUserInfo();
+        UserSettings userSettings = userProfileDTO.getUserSettings();
 
-        validateUserExists(userUpdateDTO.getId());
+        validateUserExists(userProfileDTO.getId());
         validateUserInfo(userInfo);
         validateUserSettings(userSettings);
 
-        User user = fetchUser(userUpdateDTO.getId());
+        User user = fetchUser(userProfileDTO.getId());
         boolean userInfoChanged = !userInfo.equals(user.getUserInfo());
+        boolean userSettingsChanged = !userSettings.equals(user.getUserSettings());
+
+        if (!userInfoChanged && userSettingsChanged) {
+            return;
+        }
 
         user.setUserInfo(userInfo);
         user.setUserSettings(userSettings);
@@ -128,6 +147,7 @@ public class UserService {
 
         // let everyone know that someone's user info has changed
         if (userInfoChanged) {
+            userDtoCache.get(user.getId()).setUserInfo(userInfo);
             rabbitMQService.publishUserInfo(userInfo);
         }
     }
@@ -139,44 +159,55 @@ public class UserService {
             throw new InvalidEntityException();
         }
 
-        // send the status update
         UserStatus userStatus = UserStatus.builder()
                 .status(status)
                 .time(new Date().getTime())
                 .build();
 
-        UserStatusDTO userStatusDTO = UserStatus.toUserStatusDTO(id, userStatus);
-        rabbitMQService.publishUserStatus(userStatusDTO);
-
-        // update the userCache with new status
+        // get current userDto / status
         UserDTO userDTO = userDtoCache.get(id);
         if (userDTO == null) {
             User user = fetchUser(id);
             userDTO = User.toUserDTO(user, userStatus);
-        } else {
-            userDTO.setUserStatus(userStatus);
+        }
+        else if (userDTO.getUserStatus().getStatus().equals(status)) {
+            // return if status has not changed
+            log.warn("User tried to update status to the same status. Status: " + status);
+            return;
         }
 
+        // send the status update
+
+        UserStatusDTO userStatusDTO = UserStatus.toUserStatusDTO(id, userStatus);
+        userDTO.setUserStatus(userStatus);
         userDtoCache.put(id, userDTO);
+        rabbitMQService.publishUserStatus(userStatusDTO);
     }
 
     public void enableUser(UUID id) {
         User user = validateAndGetDisabledUser(id);
         user.setEnabled(true);
         updateUser(user);
-        rabbitMQService.publishUser(user);
-        // remove them from the userCache
 
+        // add user to the cache
+        UserDTO userDTO = User.toUserDTO(user);
+        userDtoCache.put(id, userDTO);
+
+        rabbitMQService.publishUser(user);
     }
 
     public void disableUser(UUID id) {
         User user = validateAndGetEnabledUser(id);
         if (!user.isEnabled()) {
-            throw new UserAlreadyDisabledException(id);
+            throw new UserDisabledException(id);
         }
 
         user.setEnabled(false);
         updateUser(user);
+
+        // remove user from cache
+        userDtoCache.remove(id);
+
         rabbitMQService.publishUserDisabled(id);
     }
 
@@ -184,7 +215,7 @@ public class UserService {
     protected List<UUID> getOnlineUserIds(List<UUID> userIds) {
         return userDtoCache.values()
                 .stream()
-                .filter(user -> !Status.OFFLINE.equals(user.getUserStatus().getStatus()))
+                .filter(user -> !Status.Offline.equals(user.getUserStatus().getStatus()))
                 .map(UserDTO::getId)
                 .collect(Collectors.toList());
     }
@@ -203,7 +234,12 @@ public class UserService {
             return true;
         }
 
-        return Status.OFFLINE.equals(userDtoCache.get(id).getUserStatus().getStatus());
+        return Status.Offline.equals(userDtoCache.get(id).getUserStatus().getStatus());
+    }
+
+    public boolean isUserDisabled(String username) {
+        User user = userRepository.getByUsername(username);
+        return user != null && !user.isEnabled();
     }
 
     protected void validateUserExists(UUID id) {

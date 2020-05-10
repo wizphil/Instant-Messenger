@@ -63,7 +63,7 @@ function sendMessage() {
 
 function receiveStatus(user) {
     console.log("receiveStatus: ", user);
-    var message = createMessage(user.fullName, '', user.status);
+    var message = createMessage(user.fullname, '', user.status);
     message.date = user.statusTime;
     displayMessage(message);
 }
