@@ -67,7 +67,10 @@ public class UserService {
     });
 
     public void newUserSession(UUID id, Session session, Status status) {
-        // TODO throw exception when status is Offline
+        if (Status.Offline.equals(status)) {
+            throw new InvalidEntityException();
+        }
+        
         UserStatus userStatus = UserStatus.builder()
                 .status(status)
                 .time(Instant.now().toEpochMilli())
