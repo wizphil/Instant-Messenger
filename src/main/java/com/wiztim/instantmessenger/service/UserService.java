@@ -61,8 +61,13 @@ public class UserService {
 
     private final LoadingCache<String, UUID> usernameToId = CacheBuilder.newBuilder().build(new CacheLoader<String, UUID>() {
         @Override
-        public UUID load(String s) {
-            return null;
+        public UUID load(String username) {
+            User user = userRepository.getByUsername(username);
+            if (user == null) {
+                return null;
+            }
+
+            return user.getId();
         }
     });
 
@@ -70,7 +75,7 @@ public class UserService {
         if (Status.Offline.equals(status)) {
             throw new InvalidEntityException();
         }
-        
+
         UserStatus userStatus = UserStatus.builder()
                 .status(status)
                 .time(Instant.now().toEpochMilli())
