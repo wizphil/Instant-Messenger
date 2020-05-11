@@ -9,8 +9,9 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserInfo {
+public class UserDetails {
     private String username;
     private String fullname;
     private String extension;
+    private boolean enabled;
 }

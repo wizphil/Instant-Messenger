@@ -2,6 +2,8 @@ package com.wiztim.instantmessenger.service;
 
 import com.wiztim.instantmessenger.dto.GroupUserDTO;
 import com.wiztim.instantmessenger.dto.MessageDTO;
+import com.wiztim.instantmessenger.dto.MessageWrapperDTO;
+import com.wiztim.instantmessenger.enums.MessageCategory;
 import com.wiztim.instantmessenger.exceptions.DuplicateEntityException;
 import com.wiztim.instantmessenger.exceptions.InvalidEntityException;
 import com.wiztim.instantmessenger.exceptions.MessageNotFoundException;
@@ -15,7 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.Date;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -33,7 +35,7 @@ public class MessageService {
     GroupService groupService;
 
     @Autowired
-    private RabbitMQService rabbitMQService;
+    private SessionService sessionService;
 
     // System messages will have an all 0 id
     // currently this is only used when a user leaves a group
@@ -49,11 +51,11 @@ public class MessageService {
         UUID userId = messageDTO.getTo();
         userService.validateEnabledUser(userId);
 
-        messageDTO.setTime(new Date().getTime());
+        messageDTO.setTime(Instant.now().toEpochMilli());
         saveMessage(messageDTO);
 
         if (!userService.isUserOffline(userId)) {
-            rabbitMQService.publishChatMessage(userId, messageDTO);
+            sessionService.sendMessageToUser(userId, new MessageWrapperDTO(MessageCategory.DirectMessage, messageDTO));
         }
 
         return messageDTO;
@@ -64,14 +66,13 @@ public class MessageService {
 
         Group group = groupService.validateAndGetGroup(messageDTO.getTo());
 
-        messageDTO.setTime(new Date().getTime());
+        messageDTO.setTime(Instant.now().toEpochMilli());
         saveMessage(messageDTO);
 
         List<UUID> onlineUserIds = userService.getOnlineUserIds(group.getUserIds());
         onlineUserIds.remove(messageDTO.getFrom());
-        for (UUID userId : onlineUserIds) {
-            rabbitMQService.publishChatMessage(userId, messageDTO);
-        }
+
+        sessionService.sendMessageToUsers(onlineUserIds, new MessageWrapperDTO(MessageCategory.DirectMessage, messageDTO));
 
         return messageDTO;
     }
@@ -86,7 +87,7 @@ public class MessageService {
             return;
         }
 
-        rabbitMQService.publishUserTypingPing(toUserId, fromUserId);
+        sessionService.sendMessageToUser(toUserId, new MessageWrapperDTO(MessageCategory.UserTypingPing, fromUserId));
     }
 
     public void sendIsTypingToGroup(UUID fromUserId, UUID toGroupId) {
@@ -108,9 +109,8 @@ public class MessageService {
 
         List<UUID> onlineUserIds = userService.getOnlineUserIds(group.getUserIds());
         onlineUserIds.remove(fromUserId);
-        for (UUID userId : onlineUserIds) {
-            rabbitMQService.publishGroupTypingPing(userId, groupUserDTO);
-        }
+
+        sessionService.sendMessageToUsers(onlineUserIds, new MessageWrapperDTO(MessageCategory.GroupTypingPing, groupUserDTO));
     }
 
     private void saveMessage(MessageDTO messageDTO) {

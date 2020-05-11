@@ -6,7 +6,6 @@ import com.wiztim.instantmessenger.persistence.user.User;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
-import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -24,7 +23,7 @@ public class UserRepository {
     public User getByUsername(String username) {
         return userCache.values()
                 .stream()
-                .filter(user -> user.getUserInfo().getUsername().equals(username))
+                .filter(user -> user.getUserDetails().getUsername().equals(username))
                 .findFirst()
                 .orElse(null);
     }
@@ -39,7 +38,7 @@ public class UserRepository {
     public boolean isExistingUsername(String username) {
         return userCache.values()
                 .stream()
-                .anyMatch(user -> user.getUserInfo().getUsername().equals(username));
+                .anyMatch(user -> user.getUserDetails().getUsername().equals(username));
     }
 
     public void createUser(User user) {

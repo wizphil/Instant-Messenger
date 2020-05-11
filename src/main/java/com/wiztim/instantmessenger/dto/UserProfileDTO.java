@@ -1,6 +1,6 @@
 package com.wiztim.instantmessenger.dto;
 
-import com.wiztim.instantmessenger.persistence.user.UserInfo;
+import com.wiztim.instantmessenger.persistence.user.UserDetails;
 import com.wiztim.instantmessenger.persistence.user.UserSettings;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,7 +15,7 @@ import java.util.UUID;
 @AllArgsConstructor
 public class UserProfileDTO {
     private UUID id;
-    private UserInfo userInfo;
+    private UserDetails userDetails;
     private UserSettings userSettings;
     private boolean enabled;
 }

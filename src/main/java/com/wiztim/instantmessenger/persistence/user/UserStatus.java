@@ -7,7 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Date;
+import java.time.Instant;
 import java.util.UUID;
 
 @Builder
@@ -21,7 +21,7 @@ public class UserStatus {
     public static UserStatus offlineNow() {
         return UserStatus.builder()
                 .status(Status.Offline)
-                .time(new Date().getTime())
+                .time(Instant.now().toEpochMilli())
                 .build();
     }
 

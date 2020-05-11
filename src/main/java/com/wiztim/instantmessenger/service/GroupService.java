@@ -1,6 +1,8 @@
 package com.wiztim.instantmessenger.service;
 
 import com.wiztim.instantmessenger.dto.GroupUserDTO;
+import com.wiztim.instantmessenger.dto.MessageWrapperDTO;
+import com.wiztim.instantmessenger.enums.MessageCategory;
 import com.wiztim.instantmessenger.exceptions.DuplicateEntityException;
 import com.wiztim.instantmessenger.exceptions.GroupNotFoundException;
 import com.wiztim.instantmessenger.exceptions.InvalidEntityException;
@@ -17,9 +19,9 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.UUID;
 
-@Slf4j
-@Setter
 @Component
+@Setter
+@Slf4j
 public class GroupService {
 
     @Autowired
@@ -29,7 +31,7 @@ public class GroupService {
     private UserService userService;
 
     @Autowired
-    private RabbitMQService rabbitMQService;
+    private SessionService sessionService;
 
     public Group createGroup(Group group) {
         log.debug("Creating group=" + group);
@@ -62,9 +64,8 @@ public class GroupService {
         }
 
         List<UUID> onlineUserIds = userService.getOnlineUserIds(group.getUserIds());
-        for (UUID userId : onlineUserIds) {
-            rabbitMQService.publishGroup(userId, group);
-        }
+
+        sessionService.sendMessageToUsers(onlineUserIds, new MessageWrapperDTO(MessageCategory.NewGroup, group));
 
         log.debug("Group created! id=" + group.getId());
         return group;
@@ -111,9 +112,7 @@ public class GroupService {
                 .userId(userId)
                 .build();
 
-        for (UUID onlineUserId : onlineUserIds) {
-            rabbitMQService.publishUserRemovedFromGroup(onlineUserId, groupUserDTO);
-        }
+        sessionService.sendMessageToUsers(onlineUserIds, new MessageWrapperDTO(MessageCategory.UserRemovedFromGroup, groupUserDTO));
     }
 
     protected Group validateAndGetGroup(UUID id) {

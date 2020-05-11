@@ -1,6 +1,7 @@
 package com.wiztim.instantmessenger.dto;
 
-import com.wiztim.instantmessenger.persistence.user.UserInfo;
+import com.wiztim.instantmessenger.persistence.user.UserDetails;
+import com.wiztim.instantmessenger.persistence.user.UserStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,5 +15,6 @@ import java.util.UUID;
 @AllArgsConstructor
 public class UserInfoDTO {
     private UUID id;
-    private UserInfo userInfo;
+    private UserDetails userDetails;
+    private UserStatus userStatus;
 }

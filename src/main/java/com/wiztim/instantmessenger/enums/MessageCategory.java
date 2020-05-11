@@ -5,14 +5,14 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public enum OperationCode {
+public enum MessageCategory {
     DirectMessage("dm"),
     UserTypingPing("ping"),
     GroupTypingPing("gping"),
     NewGroup("newgroup"),
     UserRemovedFromGroup("rmuser"),
     NewUser("newuser"),
-    UpdateUserInfo("uinfo"),
+    UpdateUserDetails("udetails"),
     UpdateUserStatus("ustatus"),
     DisableUser("deluser");
 

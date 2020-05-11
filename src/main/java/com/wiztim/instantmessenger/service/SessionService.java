@@ -3,184 +3,157 @@ package com.wiztim.instantmessenger.service;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import com.wiztim.instantmessenger.dto.UserDTO;
-import com.wiztim.instantmessenger.dto.UserProfileDTO;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimaps;
+import com.google.common.collect.SetMultimap;
+import com.wiztim.instantmessenger.dto.MessageWrapperDTO;
 import com.wiztim.instantmessenger.enums.Status;
-import com.wiztim.instantmessenger.exceptions.InvalidEntityException;
-import com.wiztim.instantmessenger.exceptions.UserDisabledException;
-import com.wiztim.instantmessenger.persistence.user.User;
+import com.wiztim.instantmessenger.persistence.user.UserSession;
+import com.wiztim.instantmessenger.persistence.user.UserStatus;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
-import java.util.HashSet;
+import javax.websocket.EncodeException;
+import javax.websocket.Session;
+import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
-@Slf4j
-@Setter
 @Component
+@Setter
+@Slf4j
 public class SessionService {
 
-    @Autowired
-    UserService userService;
+    // This allows us to handle multiple user sessions (aka one user is signed in to multiple locations)
+    // We can send a message to all sessions and all sessions for a user, and can keep track of the user status for each session
+    private final SetMultimap<UUID, String> userIdToSessionIds = Multimaps.synchronizedSetMultimap(HashMultimap.create());
 
-    private final Map<UUID, Set<String>> sessionCache = new HashMap<>();
-    private final LoadingCache<String, Status> recentlyExpiredSessions = CacheBuilder.newBuilder()
-            .expireAfterWrite(1, TimeUnit.MINUTES)
-            .build(new CacheLoader<String, Status>() {
-                @Override
-                public Status load(String connection) throws Exception {
-                    return null;
-                }
-            });
+    // This cache is just for getting the userId so we can remove the session from `userIdToSessions` when the session closes
+    private final LoadingCache<String, UUID> sessionIdToUserId = CacheBuilder.newBuilder().build(new CacheLoader<>() {
+        @Override
+        public UUID load(String sessionId) {
+            return null;
+        }
+    });
 
-    public UserProfileDTO login(String username, String connection) {
-        if (username == null || username.isBlank() || connection == null || connection.isBlank()) {
-            log.error("Bad request made to login. username=" + username + "; connection=" + connection);
-            throw new InvalidEntityException();
+    // The actual user session that has the user's status and socket session where we can send messages
+    private final LoadingCache<String, UserSession> sessionIdToUserSession = CacheBuilder.newBuilder().build(new CacheLoader<>() {
+        @Override
+        public UserSession load(String sessionId) {
+            return null;
+        }
+    });
+
+    public void addSession(UUID userId, UserSession userSession) {
+        String sessionId = userSession.getSession().getId();
+
+        sessionIdToUserId.put(userSession.getSession().getId(), userId);
+        sessionIdToUserSession.put(sessionId, userSession);
+        userIdToSessionIds.put(userId, sessionId);
+    }
+
+    public UUID removeSession(String sessionId) {
+        UUID userId = sessionIdToUserId.getUnchecked(sessionId);
+        if (userId != null) {
+            userIdToSessionIds.remove(userId, sessionId);
         }
 
-        User user = userService.getUserByUsername(username);
+        sessionIdToUserId.invalidate(sessionId);
+        sessionIdToUserSession.invalidate(sessionId);
 
-        // null user means user does not exist, or user is disabled
-        if (user == null) {
-            // disabled users are not allowed to login
-            if (userService.isUserDisabled(username)) {
-                log.info("Disabled user attempted to login. username=" + username);
-                throw new UserDisabledException(username);
+        return userId;
+    }
+
+    public void removeUserSessions(UUID userId) {
+        Set<String> sessionIds = userIdToSessionIds.get(userId);
+        for (String sessionId : sessionIds) {
+            sessionIdToUserId.invalidate(sessionId);
+            sessionIdToUserSession.invalidate(sessionId);
+        }
+
+        userIdToSessionIds.removeAll(userId);
+    }
+
+    public int getSessionCount(UUID userId) {
+        return userIdToSessionIds.get(userId).size();
+    }
+
+    public boolean updateSessionStatus(String sessionId, UserStatus userStatus) {
+        UserSession userSession = sessionIdToUserSession.getUnchecked(sessionId);
+        if (userSession == null) {
+            return false;
+        }
+
+        userSession.setUserStatus(userStatus);
+        return true;
+    }
+
+    // When there are multiple sessions for a user, we want their displayed status to be the most recent status
+    public UserStatus getMostRecentUserStatus(UUID userId) {
+        Set<String> sessionIds = userIdToSessionIds.get(userId);
+        if (sessionIds.size() == 0) {
+            return null;
+        }
+
+        UserStatus userStatus = null;
+        long mostRecentStatusTime = Long.MIN_VALUE;
+        for (String sessionId : sessionIds) {
+            UserSession userSession = sessionIdToUserSession.getUnchecked(sessionId);
+            // We should only return ComputerLocked if there are no other Status types
+            // ComputerLocked is automatically set when the user's computer is locked, any other status means it's an active user session
+            UserStatus sessionStatus = userSession.getUserStatus();
+            long statusTime = (Status.ComputerLocked.equals(sessionStatus.getStatus())) ? -1 : sessionStatus.getTime();
+            if (statusTime > mostRecentStatusTime) {
+                userStatus = userSession.getUserStatus();
+                mostRecentStatusTime = statusTime;
+            }
+        }
+
+        // This should never happen, offline users should never be in the session cache
+        if (userStatus == null || userStatus.getStatus() == Status.Offline) {
+            for (String sessionId : sessionIds) {
+                sessionIdToUserSession.invalidate(sessionId);
             }
 
-            log.info("New user is logging in, creating new user for them. username=" + username);
-
-            // all users should be part of the team, let's create a new user when it doesn't exist
-            // maybe this should be a separate step from login, but for now I like the idea of auto-creation
-            user = userService.createUser(username);
+            userIdToSessionIds.removeAll(userId);
+            return null;
         }
 
-        // add this session to the cache
-        UUID id = user.getId();
-        if (sessionCache.containsKey(id)) {
-            sessionCache.get(id).add(connection);
-        }
-        else {
-            // we only add the user to the session cache
-            // dont use user service to set their status to online yet, the client will do that once it's initialized
-            sessionCache.put(id, new HashSet<>(List.of(connection)));
-        }
-
-        return UserProfileDTO.builder()
-                .id(user.getId())
-                .userInfo(user.getUserInfo())
-                .userSettings(user.getUserSettings())
-                .enabled(user.isEnabled())
-                .build();
+        return userStatus;
     }
 
-    public void logout(UUID id, String connection) {
-        if (id == null || connection == null || connection.isBlank()) {
-            log.error("Bad request made to logout. id=" + id + "; connection=" + connection);
-            throw new InvalidEntityException();
-        }
+    public void sendMessageToUser(UUID userId, MessageWrapperDTO messageWrapperDTO) {
+        sendMessageToUsers(List.of(userId), messageWrapperDTO);
+    }
 
-        Set<String> sessions = sessionCache.get(id);
-        if (sessions == null || !sessions.contains(connection)) {
-            log.warn("Received logout request for a user that isn't logged in. id=" + id + "; connection=" + connection);
-            return;
-        }
-
-        sessions.remove(connection);
-
-        // save the user status in case this session reconnects
-        // by saving the current user status, we can better handle the case where:
-        // session 1 disconnects > session 2 disconnects > session 1 reconnects
-        // it's not perfect, but it should work fine
-        // perfect would be if we tied each status to a session
-        // example: session 1 = locked computer, user is away; session 2 = user is online.
-        UserDTO userDTO = userService.getUserDTO(id);
-        if (userDTO != null) {
-            recentlyExpiredSessions.put(connection, userDTO.getUserStatus().getStatus());
-        }
-
-        // if no session remain, mark offline
-        if (sessions.size() == 0) {
-            log.info("User " + id + " has no active sessions remaining. Logging out.");
-            sessionCache.remove(id);
-            userService.updateUserStatus(id, Status.Offline);
+    public void sendMessageToUsers(List<UUID> userIds, MessageWrapperDTO messageWrapperDTO) {
+        for (UUID userId: userIds) {
+            Set<String> sessionIds = userIdToSessionIds.get(userId);
+            for (String sessionId : sessionIds) {
+                UserSession userSession = sessionIdToUserSession.getUnchecked(sessionId);
+                sendMessage(userSession.getSession(), messageWrapperDTO);
+            }
         }
     }
 
-    public boolean sessionExists(UUID id) {
-        return sessionCache.containsKey(id);
+    public void sendMessageToAll(MessageWrapperDTO messageWrapperDTO) {
+        Collection<Collection<String>> allSessions = userIdToSessionIds.asMap().values();
+        for (Collection<String> sessionIdCollection : allSessions) {
+            for (String sessionId : sessionIdCollection) {
+                UserSession userSession = sessionIdToUserSession.getUnchecked(sessionId);
+                sendMessage(userSession.getSession(), messageWrapperDTO);
+            }
+        }
     }
 
-    // this is done by the service listening to the event exchange
-    public boolean autoReconnect(UUID id, String connection) {
-        if (id == null || connection == null || connection.isBlank()) {
-            log.error("Bad request made to autoReconnect. id=" + id + "; connection=" + connection);
-            throw new InvalidEntityException();
-        }
-
-        // no need to do anything if the user is already online
-        if (!userService.isUserOffline(id)) {
-            return false;
-        }
-
-        Status status;
+    private void sendMessage(Session session, MessageWrapperDTO messageWrapperDTO) {
         try {
-            status = recentlyExpiredSessions.get(connection);
-        } catch (ExecutionException e) {
-            log.warn("Failed to get recently expired session from loading cache.", e);
-            return false;
+            session.getBasicRemote().sendObject(messageWrapperDTO);
+        } catch (EncodeException | IOException e) {
+            log.error("Failed to send message {}", messageWrapperDTO, e);
         }
-
-        if (status == null) {
-            log.warn("User attempted to reconnect, but their session is no longer in the cache");
-            return false;
-        }
-
-        // add this session to the cache
-        if (sessionCache.containsKey(id)) {
-            sessionCache.get(id).add(connection);
-        }
-        else {
-            sessionCache.put(id, new HashSet<>(List.of(connection)));
-        }
-
-        // mark the user online again, using the status from the session that expired
-        userService.updateUserStatus(id, status);
-        return true;
-    }
-
-    // this is a REST request made by the client when it reconnects
-    // a little redundant with above, but autoReconnect is in case the client doesn't notice the connection drop (which means they wouldn't call this method)
-    public boolean manualReconnect(UUID id, String connection, Status status) {
-        if (id == null || connection == null || connection.isBlank() || status == null) {
-            log.error("Bad request made to manualReconnect. id=" + id + "; connection=" + connection + "; status=" + status);
-            throw new InvalidEntityException();
-        }
-
-        // no need to do anything if the user is already online
-        if (!userService.isUserOffline(id)) {
-            return false;
-        }
-
-        // add this session to the cache
-        if (sessionCache.containsKey(id)) {
-            sessionCache.get(id).add(connection);
-        }
-        else {
-            sessionCache.put(id, new HashSet<>(List.of(connection)));
-        }
-
-        // mark the user online again, using the status from the session that expired
-        userService.updateUserStatus(id, status);
-        return true;
     }
 }

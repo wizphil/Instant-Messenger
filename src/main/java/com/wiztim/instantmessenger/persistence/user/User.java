@@ -1,7 +1,7 @@
 package com.wiztim.instantmessenger.persistence.user;
 
-import com.wiztim.instantmessenger.dto.UserDTO;
 import com.wiztim.instantmessenger.dto.UserInfoDTO;
+import com.wiztim.instantmessenger.dto.UserDetailsDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,27 +15,25 @@ import java.util.UUID;
 @AllArgsConstructor
 public class User {
     private UUID id;
-    private UserInfo userInfo;
+    private UserDetails userDetails;
     private UserSettings userSettings;
-    private boolean enabled;
 
-    public static UserDTO toUserDTO(User user, UserStatus userStatus) {
-        return UserDTO.builder()
+    public static UserInfoDTO toUserDTO(User user, UserStatus userStatus) {
+        return UserInfoDTO.builder()
                 .id(user.getId())
-                .userInfo(user.getUserInfo())
+                .userDetails(user.getUserDetails())
                 .userStatus(userStatus)
-                .enabled(user.isEnabled())
                 .build();
     }
 
-    public static UserDTO toUserDTO(User user) {
+    public static UserInfoDTO toUserDTO(User user) {
         return toUserDTO(user, UserStatus.offlineNow());
     }
 
-    public static UserInfoDTO toUserInfoDTO(User user) {
-        return UserInfoDTO.builder()
+    public static UserDetailsDTO toUserInfoDTO(User user) {
+        return UserDetailsDTO.builder()
                 .id(user.getId())
-                .userInfo(user.getUserInfo())
+                .userDetails(user.getUserDetails())
                 .build();
     }
 }

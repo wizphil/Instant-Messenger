@@ -1,8 +1,8 @@
 package com.wiztim.instantmessenger.controllers;
 
-import com.wiztim.instantmessenger.dto.UserDTO;
+import com.wiztim.instantmessenger.dto.UserInfoDTO;
 import com.wiztim.instantmessenger.dto.UserProfileDTO;
-import com.wiztim.instantmessenger.persistence.user.UserInfo;
+import com.wiztim.instantmessenger.persistence.user.UserDetails;
 import com.wiztim.instantmessenger.enums.Status;
 import com.wiztim.instantmessenger.interfaces.IUserController;
 import com.wiztim.instantmessenger.persistence.user.User;
@@ -29,8 +29,8 @@ public class UserController implements IUserController {
 
     @Override
     @PostMapping
-    public User createUser(@RequestBody UserInfo userInfo) {
-        return userService.createUser(userInfo);
+    public User createUser(@RequestBody UserDetails userDetails) {
+        return userService.createUser(userDetails);
     }
 
     @Override
@@ -53,26 +53,26 @@ public class UserController implements IUserController {
 
     @Override
     @GetMapping("/info")
-    public Collection<UserDTO> getAllUserInfo() {
-        return userService.getUserDTOs();
+    public Collection<UserInfoDTO> getAllUserInfo() {
+        return userService.getAllUserInfo();
     }
 
     @Override
     @GetMapping("/info/{id}")
-    public UserDTO getUserInfo(@PathVariable("id") UUID id) {
-        return userService.getUserDTO(id);
+    public UserInfoDTO getUserInfo(@PathVariable("id") UUID id) {
+        return userService.getUserInfo(id);
     }
 
     @Override
     @GetMapping("/info/username/{username}")
-    public UserDTO getUserInfoByUsername(@PathVariable("username") String username) {
-        return userService.getUserDTO(username);
+    public UserInfoDTO getUserInfoByUsername(@PathVariable("username") String username) {
+        return userService.getUserInfoByUsername(username);
     }
 
     @Override
-    @PutMapping("/{id}/status/{status}")
-    public void setUserStatus(@PathVariable("id") UUID id, @PathVariable("status") Status status) {
-        userService.updateUserStatus(id, status);
+    @PutMapping("/{id}/session/{sessionId}/status/{status}")
+    public void setUserStatus(@PathVariable("id") UUID id, @PathVariable("sessionId") String sessionId, @PathVariable("status") Status status) {
+        userService.setUserStatus(id, sessionId, status);
     }
 
     @Override

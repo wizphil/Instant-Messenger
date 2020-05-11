@@ -1,8 +1,8 @@
 package com.wiztim.instantmessenger.interfaces;
 
-import com.wiztim.instantmessenger.dto.UserDTO;
+import com.wiztim.instantmessenger.dto.UserInfoDTO;
 import com.wiztim.instantmessenger.dto.UserProfileDTO;
-import com.wiztim.instantmessenger.persistence.user.UserInfo;
+import com.wiztim.instantmessenger.persistence.user.UserDetails;
 import com.wiztim.instantmessenger.enums.Status;
 import com.wiztim.instantmessenger.persistence.user.User;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -12,7 +12,7 @@ import java.util.Collection;
 import java.util.UUID;
 
 public interface IUserController {
-    User createUser(@RequestBody UserInfo userInfo);
+    User createUser(@RequestBody UserDetails userDetails);
 
     void updateUserProfile(@RequestBody UserProfileDTO userProfileDTO);
 
@@ -20,13 +20,13 @@ public interface IUserController {
 
     User getUserByUsername(@PathVariable("username") String username);
 
-    Collection<UserDTO> getAllUserInfo();
+    Collection<UserInfoDTO> getAllUserInfo();
 
-    UserDTO getUserInfo(@PathVariable("id") UUID id);
+    UserInfoDTO getUserInfo(@PathVariable("id") UUID id);
 
-    UserDTO getUserInfoByUsername(@PathVariable("username") String username);
+    UserInfoDTO getUserInfoByUsername(@PathVariable("username") String username);
 
-    void setUserStatus(@PathVariable("id") UUID id, @PathVariable("status") Status status);
+    void setUserStatus(@PathVariable("id") UUID id, @PathVariable("sessionId") String sessionId, @PathVariable("status") Status status);
 
     void setUserEnabled(@PathVariable("id") UUID id, @PathVariable("enabled") boolean enabled);
 
