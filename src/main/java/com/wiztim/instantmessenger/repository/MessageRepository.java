@@ -25,19 +25,11 @@ public class MessageRepository {
             throw new InvalidEntityException();
         }
 
-        if (messageExists(message)) {
+        if (messageExists(message.getId())) {
             throw new DuplicateEntityException(message.getId().toString());
         }
 
         messages.put(message.getId(), message);
-    }
-
-    public boolean messageExists(Message message) {
-        if (message == null) {
-            return false;
-        }
-
-        return messageExists(message.getId());
     }
 
     public boolean messageExists(UUID id) {

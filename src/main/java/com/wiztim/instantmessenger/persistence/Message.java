@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 
-import java.util.Date;
 import java.util.UUID;
 
 @Builder
@@ -19,4 +18,6 @@ public class Message {
     @NonNull private UUID to;
     @NonNull private String content;
     private long time;
+    // we don't actually delete messages, but we mark them as not enabled to prevent the client from receiving them
+    private boolean enabled;
 }

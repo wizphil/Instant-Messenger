@@ -1,14 +1,12 @@
 package com.wiztim.instantmessenger.persistence;
 
-import com.wiztim.instantmessenger.enums.Status;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.NonNull;
 import lombok.ToString;
 
-import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Builder
@@ -18,6 +16,7 @@ import java.util.UUID;
 @ToString
 public class Group {
     private UUID id;
-    private List<UUID> userIds;
+    private Set<UUID> userIds;
+    private String groupName;
     private boolean enabled;
 }

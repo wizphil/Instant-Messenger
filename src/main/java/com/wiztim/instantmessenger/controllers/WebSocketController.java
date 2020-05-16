@@ -13,7 +13,6 @@ import javax.websocket.OnOpen;
 import javax.websocket.Session;
 import javax.websocket.server.PathParam;
 import javax.websocket.server.ServerEndpoint;
-import java.io.IOException;
 import java.util.UUID;
 
 // All users will create a WebSocket connection to mark themselves as online
@@ -26,20 +25,20 @@ public class WebSocketController {
     private UserService userService;
 
     @OnOpen
-    public void onOpen(Session session, @PathParam("userId") UUID userId, @PathParam("status") Status status) throws IOException {
+    public void onOpen(Session session, @PathParam("userId") UUID userId, @PathParam("status") Status status) {
         // Get session and WebSocket connection
         log.info("Session opened, sessionId: {}, userId: {}, status: {}", session.getId(), userId, status);
         userService.newUserSession(userId, session, status);
     }
 
     @OnMessage
-    public void onMessage(Session session, Message message) throws IOException {
+    public void onMessage(Session session, Message message) {
         // Handle new messages
         log.info("Message received, sessionId: {} message: {}", session.getId(), message);
     }
 
     @OnClose
-    public void onClose(Session session) throws IOException {
+    public void onClose(Session session) {
         // WebSocket connection closes
         log.info("Session closed, sessionId: " + session.getId());
         userService.endUserSession(session);

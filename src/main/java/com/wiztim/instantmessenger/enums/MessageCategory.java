@@ -10,11 +10,13 @@ public enum MessageCategory {
     UserTypingPing("ping"),
     GroupTypingPing("gping"),
     NewGroup("newgroup"),
-    UserRemovedFromGroup("rmuser"),
+    UsersAddedToGroup("addgusers"),
+    UserRemovedFromGroup("rmguser"),
     NewUser("newuser"),
     UpdateUserDetails("udetails"),
     UpdateUserStatus("ustatus"),
-    DisableUser("deluser");
+    DisableUser("deluser"),
+    CloseSession("delsession");
 
     private String opcode;
 }

@@ -1,7 +1,6 @@
 package com.wiztim.instantmessenger.persistence.user;
 
 import com.wiztim.instantmessenger.dto.UserInfoDTO;
-import com.wiztim.instantmessenger.dto.UserDetailsDTO;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,12 +27,5 @@ public class User {
 
     public static UserInfoDTO toUserDTO(User user) {
         return toUserDTO(user, UserStatus.offlineNow());
-    }
-
-    public static UserDetailsDTO toUserInfoDTO(User user) {
-        return UserDetailsDTO.builder()
-                .id(user.getId())
-                .userDetails(user.getUserDetails())
-                .build();
     }
 }

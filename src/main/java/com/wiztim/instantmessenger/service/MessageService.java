@@ -18,7 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
-import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Component
@@ -46,17 +46,16 @@ public class MessageService {
     }
 
     public MessageDTO sendPrivateMessage(MessageDTO messageDTO) {
+
         validateMessage(messageDTO);
 
-        UUID userId = messageDTO.getTo();
-        userService.validateEnabledUser(userId);
+        UUID toUserId = messageDTO.getTo();
+        userService.validateUserEnabled(toUserId);
 
         messageDTO.setTime(Instant.now().toEpochMilli());
         saveMessage(messageDTO);
 
-        if (!userService.isUserOffline(userId)) {
-            sessionService.sendMessageToUser(userId, new MessageWrapperDTO(MessageCategory.DirectMessage, messageDTO));
-        }
+        sessionService.sendMessageToUser(toUserId, new MessageWrapperDTO(MessageCategory.DirectMessage, messageDTO));
 
         return messageDTO;
     }
@@ -64,15 +63,12 @@ public class MessageService {
     public MessageDTO sendGroupMessage(MessageDTO messageDTO) {
         validateMessage(messageDTO);
 
-        Group group = groupService.validateAndGetGroup(messageDTO.getTo());
+        Group group = groupService.getExistingGroup(messageDTO.getTo());
 
         messageDTO.setTime(Instant.now().toEpochMilli());
         saveMessage(messageDTO);
 
-        List<UUID> onlineUserIds = userService.getOnlineUserIds(group.getUserIds());
-        onlineUserIds.remove(messageDTO.getFrom());
-
-        sessionService.sendMessageToUsers(onlineUserIds, new MessageWrapperDTO(MessageCategory.DirectMessage, messageDTO));
+        sessionService.sendMessageToUsers(group.getUserIds(), new MessageWrapperDTO(MessageCategory.DirectMessage, messageDTO));
 
         return messageDTO;
     }
@@ -80,11 +76,6 @@ public class MessageService {
     public void sendIsTypingToUser(UUID fromUserId, UUID toUserId) {
         if (fromUserId == null || toUserId == null) {
             throw new NullIdException();
-        }
-
-        // check if both users are online
-        if (userService.isUserOffline(fromUserId) || userService.isUserOffline(toUserId)) {
-            return;
         }
 
         sessionService.sendMessageToUser(toUserId, new MessageWrapperDTO(MessageCategory.UserTypingPing, fromUserId));
@@ -95,22 +86,18 @@ public class MessageService {
             throw new NullIdException();
         }
 
-        // check if user is online
-        if (userService.isUserOffline(fromUserId)) {
-            return;
-        }
-
-        Group group = groupService.validateAndGetGroup(toGroupId);
+        Group group = groupService.getExistingGroup(toGroupId);
 
         GroupUserDTO groupUserDTO = GroupUserDTO.builder()
                 .userId(fromUserId)
                 .groupId(toGroupId)
                 .build();
 
-        List<UUID> onlineUserIds = userService.getOnlineUserIds(group.getUserIds());
-        onlineUserIds.remove(fromUserId);
+        // don't send isTyping to ourselves
+        Set<UUID> userIds = group.getUserIds();
+        userIds.remove(fromUserId);
 
-        sessionService.sendMessageToUsers(onlineUserIds, new MessageWrapperDTO(MessageCategory.GroupTypingPing, groupUserDTO));
+        sessionService.sendMessageToUsers(userIds, new MessageWrapperDTO(MessageCategory.GroupTypingPing, groupUserDTO));
     }
 
     private void saveMessage(MessageDTO messageDTO) {
@@ -150,7 +137,7 @@ public class MessageService {
 
         // if sender isn't system, then make sure sender is a valid user
         if (!messageDTO.getFrom().equals(systemId)) {
-            userService.validateEnabledUser(messageDTO.getFrom());
+            userService.validateUserEnabled(messageDTO.getFrom());
         }
     }
 }

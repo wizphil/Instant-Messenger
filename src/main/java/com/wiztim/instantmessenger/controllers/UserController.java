@@ -34,6 +34,12 @@ public class UserController implements IUserController {
     }
 
     @Override
+    @PostMapping("/username/{username}")
+    public User createUserByUsername(@PathVariable("username") String username) {
+        return userService.createUser(username);
+    }
+
+    @Override
     @PutMapping
     public void updateUserProfile(@RequestBody UserProfileDTO userProfileDTO) {
         userService.updateUserProfile(userProfileDTO);
@@ -42,7 +48,13 @@ public class UserController implements IUserController {
     @Override
     @GetMapping("/{id}")
     public User getUser(@PathVariable("id") UUID id) {
-        return userService.getUser(id);
+        return userService.getExistingUser(id);
+    }
+
+    @Override
+    @GetMapping("/{id}/fullname")
+    public String getFullname(@PathVariable("id") UUID id) {
+        return userService.getFullname(id);
     }
 
     @Override
@@ -72,7 +84,7 @@ public class UserController implements IUserController {
     @Override
     @PutMapping("/{id}/session/{sessionId}/status/{status}")
     public void setUserStatus(@PathVariable("id") UUID id, @PathVariable("sessionId") String sessionId, @PathVariable("status") Status status) {
-        userService.setUserStatus(id, sessionId, status);
+        userService.setStatus(id, sessionId, status);
     }
 
     @Override

@@ -14,9 +14,13 @@ import java.util.UUID;
 public interface IUserController {
     User createUser(@RequestBody UserDetails userDetails);
 
+    User createUserByUsername(@PathVariable("username") String username);
+
     void updateUserProfile(@RequestBody UserProfileDTO userProfileDTO);
 
     User getUser(@PathVariable("id") UUID id);
+
+    String getFullname(@PathVariable("id") UUID id);
 
     User getUserByUsername(@PathVariable("username") String username);
 

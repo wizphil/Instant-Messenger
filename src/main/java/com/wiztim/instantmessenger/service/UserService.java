@@ -8,7 +8,7 @@ import com.wiztim.instantmessenger.dto.UserInfoDTO;
 import com.wiztim.instantmessenger.dto.UserDetailsDTO;
 import com.wiztim.instantmessenger.dto.UserProfileDTO;
 import com.wiztim.instantmessenger.enums.MessageCategory;
-import com.wiztim.instantmessenger.exceptions.SessionNotFoundException;
+import com.wiztim.instantmessenger.exceptions.NullIdException;
 import com.wiztim.instantmessenger.exceptions.UserNotFoundException;
 import com.wiztim.instantmessenger.persistence.user.UserDetails;
 import com.wiztim.instantmessenger.dto.UserStatusDTO;
@@ -16,7 +16,6 @@ import com.wiztim.instantmessenger.enums.Status;
 import com.wiztim.instantmessenger.exceptions.DuplicateEntityException;
 import com.wiztim.instantmessenger.exceptions.DisabledEntityException;
 import com.wiztim.instantmessenger.exceptions.InvalidEntityException;
-import com.wiztim.instantmessenger.exceptions.RepositoryException;
 import com.wiztim.instantmessenger.exceptions.UserAlreadyEnabledException;
 import com.wiztim.instantmessenger.exceptions.UserDisabledException;
 import com.wiztim.instantmessenger.persistence.user.User;
@@ -32,9 +31,9 @@ import org.springframework.stereotype.Component;
 import javax.websocket.Session;
 import java.time.Instant;
 import java.util.Collection;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Component
 @Setter
@@ -50,8 +49,14 @@ public class UserService {
     private final LoadingCache<UUID, UserInfoDTO> userInfoCache = CacheBuilder.newBuilder().build(new CacheLoader<>() {
         @Override
         public UserInfoDTO load(UUID id) {
-            User user = getUser(id);
+            User user = userRepository.get(id);
             if (user == null) {
+                log.warn("userInfoCache failed to load user with id: {}", id);
+                return null;
+            }
+
+            if (!user.getUserDetails().isEnabled()) {
+                log.info("userInfoCache attempted to load deactivated user with id: {}", id);
                 return null;
             }
 
@@ -59,20 +64,18 @@ public class UserService {
         }
     });
 
-    private final LoadingCache<String, UUID> usernameToId = CacheBuilder.newBuilder().build(new CacheLoader<String, UUID>() {
-        @Override
-        public UUID load(String username) {
-            User user = userRepository.getByUsername(username);
-            if (user == null) {
-                return null;
-            }
-
-            return user.getId();
-        }
-    });
-
     public void newUserSession(UUID id, Session session, Status status) {
-        if (Status.Offline.equals(status)) {
+        validateUserEnabled(id);
+
+        if (session == null) {
+            log.warn("User {} attempted to create new session, but session was null", id);
+            throw new InvalidEntityException();
+        }
+
+        validateSessionId(session.getId());
+
+        if (status == null || Status.Offline.equals(status)) {
+            log.warn("User {} attempted to create new session with a bad status: {}", id, status);
             throw new InvalidEntityException();
         }
 
@@ -87,34 +90,38 @@ public class UserService {
                 .build();
 
         sessionService.addSession(id, userSession);
-        setUserStatus(id, session.getId(), status);
+        setStatus(id, session.getId(), status);
     }
 
     public void endUserSession(Session session) {
-        UUID id = sessionService.removeSession(session.getId());
-        setUserStatus(id, session.getId(), Status.Offline);
+        UUID id = sessionService.closeSession(session.getId());
+        UserStatus latestSessionStatus = sessionService.getMostRecentUserStatus(id);
+        if (latestSessionStatus == null) {
+            setStatus(id, session.getId(), Status.Offline);
+        } else {
+            setStatus(id, session.getId(), latestSessionStatus.getStatus());
+        }
     }
 
     public User createUser(String username) {
         UserDetails userDetails = UserDetails.builder()
-                .username(username)
+                .usernames(Set.of(username))
                 .build();
 
         return createUser(userDetails);
     }
 
     public User createUser(UserDetails userDetails) {
+        log.info("Creating new user {}", userDetails);
         validateUserDetails(userDetails);
-        if (userDetails.getFullname() == null) {
-            userDetails.setFullname(userDetails.getUsername());
-        }
-        if (userDetails.getExtension() == null) {
-            userDetails.setExtension("");
-        }
+        validateUsernames(userDetails.getUsernames());
 
         // check if user with username already exists
-        if (userRepository.isExistingUsername(userDetails.getUsername())) {
-            throw new DuplicateEntityException(userDetails.getUsername());
+        for (String username : userDetails.getUsernames()) {
+            if (userRepository.isExistingUsername(username)) {
+                log.warn("Failed to create new user, user with username {} already exists", username);
+                throw new DuplicateEntityException(username);
+            }
         }
 
         User user = User.builder()
@@ -123,56 +130,44 @@ public class UserService {
                 .userSettings(UserSettings.defaultSettings())
                 .build();
 
-        // surely this can't happen
-        if (userRepository.userExists(user.getId())) {
-            throw new DuplicateEntityException(user.getId());
-        }
-
-        try {
-            userRepository.createUser(user);
-        } catch (Exception e) {
-            throw new RepositoryException(e);
-        }
+        userRepository.createUser(user);
 
         // update the cache, we have a new user!
         userInfoCache.put(user.getId(), User.toUserDTO(user));
 
         // let clients know a new user has been made
         sessionService.sendMessageToAll(new MessageWrapperDTO(MessageCategory.NewUser, user));
+        log.info("New user created {}", user);
         return user;
     }
 
-    public User getUser(UUID id) {
-        if (id == null) {
-            return null;
-        }
-
-        return userRepository.get(id);
-    }
-
     public User getUserByUsername(String username) {
-        UUID id = usernameToId.getUnchecked(username);
-        if (id == null) {
-            return null;
-        }
-
-        return getUser(id);
+        validateUsername(username);
+        return userRepository.getByUsername(username);
     }
 
     // When a user logs in, they need the entire list of enabled users with their status
     // We trust that the cache is accurate and up to date
     public Collection<UserInfoDTO> getAllUserInfo() {
-        // TODO page results, don't want to see too many users in one call
+        // TODO page results, don't want to send too many users in one call
         return userInfoCache.asMap().values();
     }
 
     public UserInfoDTO getUserInfoByUsername(String username) {
-        UUID id = usernameToId.getUnchecked(username);
-        if (id == null) {
-            return null;
+        validateUsername(username);
+
+        User user = userRepository.getByUsername(username);
+        if (user == null) {
+            log.warn("getUserInfoByUsername failed to find User for username: \"{}\"", username);
+            throw new InvalidEntityException();
         }
 
-        return getUserInfo(id);
+        if (!user.getUserDetails().isEnabled()) {
+            log.warn("getUserInfoByUsername attempted to get user info for disabled username: \"{}\"", username);
+            throw new UserDisabledException(user.getId());
+        }
+
+        return getUserInfo(user.getId());
     }
 
     public UserInfoDTO getUserInfo(UUID id) {
@@ -180,36 +175,33 @@ public class UserService {
     }
 
     public void updateUserProfile(UserProfileDTO userProfileDTO) {
+        validateUserProfile(userProfileDTO);
+
         UUID id = userProfileDTO.getId();
-
-        UserDetails userDetails = userProfileDTO.getUserDetails();
+        User user = getExistingUser(id);
         UserSettings userSettings = userProfileDTO.getUserSettings();
+        UserDetails userDetails = userProfileDTO.getUserDetails();
 
-        validateUserExists(id);
-        validateUserDetails(userDetails);
-        validateUserSettings(userSettings);
-
-        User user = getUser(id);
-        if (user == null) {
-            throw new UserNotFoundException(id);
-        }
-        // we don't allow changing enabled / disabled through this call
+        // we don't allow changing enabled / disabled or associated usernames through this call
         userDetails.setEnabled(user.getUserDetails().isEnabled());
+        userDetails.setUsernames(user.getUserDetails().getUsernames());
 
         boolean userDetailsChanged = !userDetails.equals(user.getUserDetails());
         boolean userSettingsChanged = !userSettings.equals(user.getUserSettings());
 
         if (!userDetailsChanged && !userSettingsChanged) {
+            log.info("updateUserProfile was called with no changes made to the user");
             return;
         }
 
         user.setUserDetails(userDetails);
         user.setUserSettings(userSettings);
 
-        updateUser(user);
+        userRepository.updateUser(user);
 
         // let everyone know that a user details has changed
         if (userDetailsChanged) {
+            log.info("User details have changed, broadcasting new details {}", userDetails);
             userInfoCache.getUnchecked(id).setUserDetails(userDetails);
 
             UserDetailsDTO userDetailsDTO = new UserDetailsDTO(id, userDetails);
@@ -217,176 +209,241 @@ public class UserService {
         }
     }
 
-    public void setUserStatus(UUID id, String sessionId, Status status) {
+    public void setStatus(UUID id, String sessionId, Status status) {
+        validateId(id);
+
         UserStatus userStatus = UserStatus.builder()
                 .status(status)
                 .time(Instant.now().toEpochMilli())
                 .build();
 
-        setUserStatus(id, sessionId, userStatus);
+        setStatus(id, sessionId, userStatus);
     }
 
-    private void setUserStatus(UUID id, String sessionId, UserStatus userStatus) {
-        // validate request
-        if (userStatus == null) {
-            throw new InvalidEntityException();
-        }
-
-        validateEnabledUser(id);
-
-        // get current userDto / status
-        UserInfoDTO userInfo = userInfoCache.getUnchecked(id);
-        if (userInfo == null) {
-            throw new UserNotFoundException(id);
-        }
+    private void setStatus(UUID id, String sessionId, UserStatus userStatus) {
+        log.debug("setStatus called; id: {} sessionId: {} userStatus: {}", id, sessionId, userStatus);
+        validateId(id);
+        validateSessionId(sessionId);
+        validateUserStatus(userStatus);
 
         Status status = userStatus.getStatus();
 
         if (Status.Offline.equals(status)) {
-            sessionService.removeSession(sessionId);
+            log.info("setStatus received offline status, closing user session userId {} sessionId {}", id, sessionId);
+            sessionService.closeSession(sessionId);
         } else {
+            // success means that the session exists
             boolean success = sessionService.updateSessionStatus(sessionId, userStatus);
             if (!success) {
-                log.error("Attempted to update user status, but sessionId was not found. This should only happen when done through swagger / backend. userId: {}, sessionId: {}", id, sessionId);
-                sessionService.removeSession(sessionId);
-
-                // if this was the only session, mark them as offline
-                if (sessionService.getSessionCount(id) == 0) {
-                    setUserStatus(id, sessionId, Status.Offline);
-                }
-
-                throw new SessionNotFoundException(sessionId);
+                log.warn("setStatus tried to update status for a session that doesn't exist. userId {} sessionId {}", id, sessionId);
+                // if this session does not exist, it must be offline
+                userStatus.setStatus(Status.Offline);
             }
         }
 
-        // if this session is ComputerLocked, but there's a session that's not ComputerLocked, we don't update the status
-        if (Status.ComputerLocked.equals(status)) {
-            UserStatus latestSessionStatus = sessionService.getMostRecentUserStatus(id);
-            if (!Status.ComputerLocked.equals(latestSessionStatus.getStatus())) {
+        // getMostRecentUserStatus will prioritize all other statuses above ComputerLocked
+        UserStatus latestSessionStatus = sessionService.getMostRecentUserStatus(id);
+
+        // get current userDto / status
+        UserInfoDTO userInfo = userInfoCache.getUnchecked(id);
+        if (userInfo == null) {
+            log.warn("setStatus failed to get userInfo for user {}", id);
+            throw new UserNotFoundException(id);
+        }
+
+        UserStatus currentStatus = userInfo.getUserStatus();
+        if (latestSessionStatus != null) {
+            if (!currentStatus.getStatus().equals(latestSessionStatus.getStatus())) {
+                // If the new status is the same as the current status, we don't need to do anything else
+                log.debug("setStatus received, but status hasn't changed, terminating early");
                 return;
+            } else {
+                log.error("setStatus received, and the latest status isn't equal to the current status. Correcting current status. " +
+                        "If this happens, this is a bug, because the current status should always be correct.");
+                userStatus.setStatus(latestSessionStatus.getStatus());
             }
         }
 
+        // publish this new status to all online clients
         UserStatusDTO userStatusDTO = UserStatus.toUserStatusDTO(id, userStatus);
         userInfo.setUserStatus(userStatus);
         userInfoCache.put(id, userInfo);
 
-        sessionService.sendMessageToAll(new MessageWrapperDTO(MessageCategory.UpdateUserStatus, userStatusDTO));
+        // by the end of this call, if the status is offline, then it means the service believes the user is offline and has no active sessions
+        // just in case we messed up somewhere and there are sessions still in the cache, we should clean then up
+        // if there actually any valid and active sessions, the client will receive a message letting them know we closed their session
+        Status finalStatus = userStatus.getStatus();
+        if (Status.Offline.equals(finalStatus)) {
+            sessionService.closeUserSessions(id);
+        }
+
+        if (!userInfo.getUserDetails().isEnabled()) {
+            log.warn("setStatus called on a deactivated user: {}", userInfo);
+            // we don't store deactivated users in the cache
+            userInfoCache.invalidate(id);
+            throw new UserDisabledException(id);
+        }
+
+        sessionService.sendMessageToAllExceptSelf(id, new MessageWrapperDTO(MessageCategory.UpdateUserStatus, userStatusDTO));
+
+        log.debug("setStatus finished; id: {} sessionId: {} userStatus: {}", id, sessionId, userStatus);
     }
 
     public void enableUser(UUID id) {
-        User user = validateAndGetDisabledUser(id);
+        log.info("enabling user {}", id);
+        validateId(id);
+
+        User user = getExistingUser(id);
+        if (!user.getUserDetails().isEnabled()) {
+            log.warn("Enable user called on an already enabled user {}", id);
+            throw new UserAlreadyEnabledException(id);
+        }
+
         user.getUserDetails().setEnabled(true);
-        updateUser(user);
+        userRepository.updateUser(user);
 
         // add user to the cache
         UserInfoDTO userInfoDTO = User.toUserDTO(user);
         userInfoCache.put(id, userInfoDTO);
 
         sessionService.sendMessageToAll(new MessageWrapperDTO(MessageCategory.NewUser, user));
+        log.info("successfully enabled user {}", id);
     }
 
     public void disableUser(UUID id) {
-        User user = validateAndGetEnabledUser(id);
+        log.info("disabling user {}", id);
+        validateId(id);
+
+        User user = getExistingUser(id);
         if (!user.getUserDetails().isEnabled()) {
+            log.warn("Disable user called on an already Disabled user {}", id);
             throw new UserDisabledException(id);
         }
 
         user.getUserDetails().setEnabled(false);
-        updateUser(user);
+        userRepository.updateUser(user);
 
         // remove user from cache
         userInfoCache.invalidate(id);
-        sessionService.removeUserSessions(id);
+        sessionService.closeUserSessions(id);
 
         sessionService.sendMessageToAll(new MessageWrapperDTO(MessageCategory.DisableUser, id));
-    }
-
-    // takes a list of userIds and returns which of those users are currently online
-    protected List<UUID> getOnlineUserIds(List<UUID> userIds) {
-        return userInfoCache.asMap().values()
-                .stream()
-                .filter(user -> !Status.Offline.equals(user.getUserStatus().getStatus()))
-                .map(UserInfoDTO::getId)
-                .collect(Collectors.toList());
+        log.info("successfully disabled user {}", id);
     }
 
     // takes a list of userIds and returns which of those users are currently enabled
-    protected List<UUID> getEnabled(List<UUID> userIds) {
-        return userInfoCache.asMap().values()
-                .stream()
-                .filter(userInfoDTO -> userInfoDTO.getUserDetails().isEnabled())
-                .map(UserInfoDTO::getId)
-                .collect(Collectors.toList());
-    }
+    protected Set<UUID> getEnabledUserIds(Set<UUID> userIds) {
+        Set<UUID> enabledUserIds = new HashSet<>();
 
-    public boolean isUserOffline(UUID id) {
-        UserInfoDTO userInfo = userInfoCache.getUnchecked(id);
-        if (id == null) {
-            return true;
+        for (UUID id : userIds) {
+            UserInfoDTO userInfo = userInfoCache.getUnchecked(id);
+            if (userInfo != null && userInfo.getUserDetails().isEnabled()) {
+                enabledUserIds.add(id);
+            }
         }
 
-        return Status.Offline.equals(userInfo.getUserStatus().getStatus());
+        return enabledUserIds;
     }
 
-    public boolean isUserDisabled(String username) {
-        UUID id = usernameToId.getUnchecked(username);
+    public User getExistingUser(UUID id) {
+        validateId(id);
+
+        User user = userRepository.get(id);
+        if (user == null) {
+            log.warn("getExistingUser could not find user with id: {}", id);
+            throw new UserNotFoundException(id);
+        }
+
+        return user;
+    }
+
+    public String getFullname(UUID id) {
+        log.info("getting fullname for user {}", id);
         UserInfoDTO userInfo = userInfoCache.getUnchecked(id);
-        return userInfo == null || !userInfo.getUserDetails().isEnabled();
+        // We don't keep deactivated users in the cache
+        if (userInfo == null) {
+            User user = getExistingUser(id);
+            return user.getUserDetails().getFullname();
+        } else {
+            return userInfo.getUserDetails().getFullname();
+        }
     }
 
-    protected void validateUserExists(UUID id) {
-        if (id == null || !userRepository.userExists(id)) {
+    protected void validateUserEnabled(UUID id) {
+        validateId(id);
+
+        User user = getExistingUser(id);
+        if (!user.getUserDetails().isEnabled()) {
+            log.warn("validateUserEnabled exception, user {} is disabled", id);
+            throw new DisabledEntityException(id);
+        }
+    }
+
+    private void validateId(UUID id) {
+        if (id == null ) {
+            log.warn("User Id failed validation: null");
+            throw new NullIdException();
+        }
+    }
+
+    private void validateSessionId(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            log.warn("User failed sessionId validation: {}", sessionId);
+            throw new NullIdException();
+        }
+    }
+
+    private void validateUsernames(Set<String> usernames) {
+        log.debug("Validating usernames: {}", usernames);
+
+        if (usernames == null || usernames.size() == 0) {
+            log.warn("Username failed validation, null or empty");
+            throw new InvalidEntityException();
+        }
+
+        for (String username : usernames) {
+            validateUsername(username);
+        }
+    }
+
+    private void validateUsername(String username) {
+        if (username == null || username.isBlank()) {
+            log.warn("Username {} failed validation", username);
             throw new InvalidEntityException();
         }
     }
 
-    protected void validateEnabledUser(UUID id) {
-        validateUserExists(id);
-        User user = userRepository.get(id);
-        if (!user.getUserDetails().isEnabled()) {
-            throw new DisabledEntityException(id);
-        }
-    }
-
-    protected User validateAndGetEnabledUser(UUID id) {
-        validateUserExists(id);
-        User user = userRepository.get(id);
-        if (!user.getUserDetails().isEnabled()) {
-            throw new DisabledEntityException(id);
+    private void validateUserProfile(UserProfileDTO userProfile) {
+        if (userProfile == null || userProfile.getUserDetails() == null || userProfile.getUserSettings() == null) {
+            log.warn("User info failed validation: " + userProfile);
+            throw new InvalidEntityException();
         }
 
-        return user;
-    }
-
-    protected User validateAndGetDisabledUser(UUID id) {
-        validateUserExists(id);
-        User user = userRepository.get(id);
-        if (user.getUserDetails().isEnabled()) {
-            throw new UserAlreadyEnabledException(id);
-        }
-
-        return user;
-    }
-
-    private void updateUser(User user) {
-        try {
-            userRepository.updateUser(user);
-        } catch (Exception e) {
-            throw new RepositoryException(e);
-        }
+        validateId(userProfile.getId());
+        validateUserDetails(userProfile.getUserDetails());
+        validateUserSettings(userProfile.getUserSettings());
     }
 
     private void validateUserDetails(UserDetails userDetails) {
-        if (userDetails == null || userDetails.getUsername() == null || userDetails.getUsername().isBlank()) {
-            log.error("User info failed validation: " + userDetails);
+        if (userDetails == null || userDetails.getUsernames() == null || userDetails.getUsernames().size() == 0) {
+            log.warn("User info failed validation: " + userDetails);
+            throw new InvalidEntityException();
+        }
+
+        validateUsernames(userDetails.getUsernames());
+    }
+
+    private void validateUserSettings(UserSettings userSettings) {
+        // TODO max font size should be a dynamic server config
+        if (userSettings == null || userSettings.getFontSize() <= 0 || userSettings.getFontSize() > 200) {
+            log.warn("User settings failed validation: " + userSettings);
             throw new InvalidEntityException();
         }
     }
 
-    private void validateUserSettings(UserSettings userSettings) {
-        if (userSettings == null || userSettings.getFontSize() <= 0 || userSettings.getFontSize() > 100) {
-            log.error("User settings failed validation: " + userSettings);
+    private void validateUserStatus(UserStatus userStatus) {
+        if (userStatus == null || userStatus.getStatus() == null || userStatus.getTime() <= 0) {
+            log.warn("User status failed validation: " + userStatus);
             throw new InvalidEntityException();
         }
     }
