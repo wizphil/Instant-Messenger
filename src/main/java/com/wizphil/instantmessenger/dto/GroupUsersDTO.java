@@ -1,0 +1,17 @@
+package com.wizphil.instantmessenger.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.Set;
+
+@Builder
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class GroupUsersDTO {
+    Set<String> userIds;
+    String groupId;
+}

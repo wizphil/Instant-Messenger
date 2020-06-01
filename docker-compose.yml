@@ -1,0 +1,23 @@
+version: '3.6'
+
+services:
+  mongo:
+    container_name: docker-mongo
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/data/db
+    hostname: mongo
+
+#  spring:
+#    depends_on:
+#      - mongo
+#    image: instantmessenger:latest
+#    ports:
+#      - "8080:8080"
+#    hostname: spring
+#    links:
+#      - mongo
+volumes:
+  mongodata:
