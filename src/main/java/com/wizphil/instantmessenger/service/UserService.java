@@ -169,13 +169,7 @@ public class UserService {
         validateUsername(username);
         username = username.trim();
 
-        User user = userCache.getByUsername(username);
-        if (user == null) {
-            log.warn("getUserInfoByUsername failed to find User for username: \"{}\"", username);
-            throw new InvalidEntityException();
-        }
-
-        return user;
+        return userCache.getByUsername(username);
     }
 
     // When a user logs in, they need the entire list of enabled users with their status
@@ -191,8 +185,7 @@ public class UserService {
 
         User user = userCache.getByUsername(username);
         if (user == null) {
-            log.warn("getUserInfoByUsername failed to find User for username: \"{}\"", username);
-            throw new InvalidEntityException();
+            return null;
         }
 
         if (!user.getUserDetails().isEnabled()) {
@@ -302,7 +295,7 @@ public class UserService {
 
         UserStatus currentStatus = userInfo.getUserStatus();
         if (latestSessionStatus != null) {
-            if (!currentStatus.getStatus().equals(latestSessionStatus.getStatus())) {
+            if (currentStatus.getStatus().equals(latestSessionStatus.getStatus())) {
                 // If the new status is the same as the current status, we don't need to do anything else
                 log.debug("setStatus received, but status hasn't changed, terminating early");
                 return;
