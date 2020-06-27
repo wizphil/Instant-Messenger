@@ -48,7 +48,7 @@ public class MessageCache {
     // using 250 because to prevent the request from ever being more than 500kb (messages have a 2kb character limit)
     private static final int MAX_RESULT_LIMIT = 250;
 
-    public Message get(String id) {
+    public Message getMessage(String id) {
         return messageRepository.findById(id).orElse(null);
     }
 

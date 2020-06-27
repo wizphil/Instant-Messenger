@@ -8,7 +8,6 @@ import com.wizphil.instantmessenger.dto.MessageDTO;
 import com.wizphil.instantmessenger.dto.MessageWrapperDTO;
 import com.wizphil.instantmessenger.enums.MessageCategory;
 import com.wizphil.instantmessenger.exceptions.InvalidEntityException;
-import com.wizphil.instantmessenger.exceptions.MessageNotFoundException;
 import com.wizphil.instantmessenger.exceptions.MessageTooLargeException;
 import com.wizphil.instantmessenger.exceptions.NullIdException;
 import com.wizphil.instantmessenger.exceptions.UserNotInGroupException;
@@ -206,12 +205,7 @@ public class MessageService {
             throw new NullIdException();
         }
 
-        Message message = messageCache.get(id);
-        if (message == null) {
-            throw new MessageNotFoundException(id);
-        }
-
-        return message;
+        return messageCache.getMessage(id);
     }
 
     private GroupMessage validateAndGetGroupMessage(String id) {
@@ -219,12 +213,7 @@ public class MessageService {
             throw new NullIdException();
         }
 
-        GroupMessage groupMessage = messageCache.getGroupMessage(id);
-        if (groupMessage == null) {
-            throw new MessageNotFoundException(id);
-        }
-
-        return groupMessage;
+        return messageCache.getGroupMessage(id);
     }
 
     private void validateMessage(MessageDTO messageDTO) {

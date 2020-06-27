@@ -46,7 +46,7 @@ public class UserController implements IUserController {
     @Override
     @GetMapping("/{id}")
     public User getUser(@PathVariable("id") String id) {
-        return userService.getExistingUser(id);
+        return userService.getUser(id);
     }
 
     @Override

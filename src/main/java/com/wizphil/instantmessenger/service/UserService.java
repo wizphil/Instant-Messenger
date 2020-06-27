@@ -196,6 +196,10 @@ public class UserService {
         return getUserInfo(user.getId());
     }
 
+    public User getUser(String id) {
+        return userCache.get(id);
+    }
+
     public UserInfoDTO getUserInfo(String id) {
         try {
             return userInfoCache.getUnchecked(id);
@@ -385,9 +389,7 @@ public class UserService {
                 if (userInfo.getUserDetails().isEnabled()) {
                     enabledUserIds.add(id);
                 }
-            } catch (CacheLoader.InvalidCacheLoadException e) {
-                log.warn("setStatus failed to get userInfo for user {}", id);
-                throw new UserNotFoundException(id);
+            } catch (CacheLoader.InvalidCacheLoadException ignored) {
             }
         }
 

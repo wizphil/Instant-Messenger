@@ -49,7 +49,7 @@ public class MessageCacheTests {
                 .deleted(false)
                 .build());
 
-        Message result = cache.get(message.getId());
+        Message result = cache.getMessage(message.getId());
 
         assertThat(result).isNotNull();
         assertThat(result.getContent()).isEqualTo(message.getContent());

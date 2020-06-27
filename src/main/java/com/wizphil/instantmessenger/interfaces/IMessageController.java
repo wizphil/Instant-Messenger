@@ -3,7 +3,6 @@ package com.wizphil.instantmessenger.interfaces;
 import com.wizphil.instantmessenger.dto.MessageDTO;
 import com.wizphil.instantmessenger.exceptions.DuplicateEntityException;
 import com.wizphil.instantmessenger.exceptions.InvalidEntityException;
-import com.wizphil.instantmessenger.exceptions.MessageNotFoundException;
 import com.wizphil.instantmessenger.exceptions.NullIdException;
 import com.wizphil.instantmessenger.exceptions.RepositoryException;
 import com.wizphil.instantmessenger.persistence.GroupMessage;
@@ -15,9 +14,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import java.util.Map;
 
 public interface IMessageController {
-    Message getMessage(@PathVariable("id") String id) throws NullIdException, MessageNotFoundException;
+    Message getMessage(@PathVariable("id") String id) throws NullIdException;
 
-    GroupMessage getGroupMessage(@PathVariable("id") String id) throws NullIdException, MessageNotFoundException;
+    GroupMessage getGroupMessage(@PathVariable("id") String id) throws NullIdException;
 
     Page<Message> getConversation(@PathVariable("user1Id") String user1Id, @PathVariable("user2Id") String user2Id, @PathVariable("time") long time);
 
