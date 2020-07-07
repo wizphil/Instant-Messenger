@@ -10,17 +10,17 @@ services:
       - mongodata:/data/db
     hostname: mongo
 
-#  spring:
-#    depends_on:
-#      - mongo
-#    image: instantmessenger:latest
-#    ports:
-#      - "8080:8080"
-#      - "9999:9999"
-#    hostname: spring
-#    links:
-#      - mongo
-#    environment:
-#      - DEBUG_OPTS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:9999
+  spring:
+    depends_on:
+      - mongo
+    image: instantmessenger:latest
+    ports:
+      - "8080:8080"
+      - "9999:9999"
+    hostname: spring
+    links:
+      - mongo
+    environment:
+      - DEBUG_OPTS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:9999
 volumes:
   mongodata:
