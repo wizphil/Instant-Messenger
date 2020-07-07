@@ -1,4 +1,4 @@
-version: '3.6'
+version: '2.1'
 
 services:
   mongo:
@@ -7,12 +7,18 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - mongodata:/data/db
+      - ./db:/data/db
+    healthcheck:
+      test: echo 'db.stats().ok' | mongo localhost:27017/zenbrain --quiet
+      interval: 5s
+      timeout: 5s
+      retries: 12
     hostname: mongo
 
   spring:
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
     image: instantmessenger:latest
     ports:
       - "8080:8080"
@@ -22,5 +28,4 @@ services:
       - mongo
     environment:
       - DEBUG_OPTS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:9999
-volumes:
-  mongodata:
+    #todo add health check for mongo
