@@ -2,21 +2,16 @@ package com.wizphil.instantmessenger.controllers;
 
 import com.wizphil.instantmessenger.config.SpringContext;
 import com.wizphil.instantmessenger.config.WebSocketEncoder;
-import com.wizphil.instantmessenger.enums.Status;
-import com.wizphil.instantmessenger.persistence.Message;
 import com.wizphil.instantmessenger.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.socket.server.standard.SpringConfigurator;
 
 import javax.websocket.OnClose;
 import javax.websocket.OnError;
-import javax.websocket.OnMessage;
 import javax.websocket.OnOpen;
 import javax.websocket.Session;
 import javax.websocket.server.PathParam;
 import javax.websocket.server.ServerEndpoint;
-import java.util.Stack;
 
 // All users will create a WebSocket connection to mark themselves as online
 // If the connection is closed or errors out, we use UserService to mark the session as closed
