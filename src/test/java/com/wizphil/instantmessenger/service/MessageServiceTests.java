@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.web.WebAppConfiguration;
 
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @DirtiesContext
+@WebAppConfiguration
 public class MessageServiceTests {
     @Autowired
     MessageService service;
@@ -24,11 +26,13 @@ public class MessageServiceTests {
     //@Test
     public void createsMessage() {
 
-        Message helloWorld = service.sendPrivateMessage(MessageDTO.builder()
+        String helloWorldId = service.sendPrivateMessage(MessageDTO.builder()
                 .from(BOB)
                 .to(ALICE)
                 .content("Hello world!")
                 .build());
+
+        Message helloWorld = service.getMessage(helloWorldId);
 
         assertThat(helloWorld).isNotNull();
         assertThat(helloWorld.getId()).isNotNull().isNotBlank();
@@ -39,16 +43,17 @@ public class MessageServiceTests {
     //@Test
     public void getsMessage() {
 
-        Message message = service.sendPrivateMessage(MessageDTO.builder()
+        String content = "This is a message.";
+        String messageId = service.sendPrivateMessage(MessageDTO.builder()
                 .from(ALICE)
                 .to(BOB)
-                .content("This is a message.")
+                .content(content)
                 .build());
 
-        Message result = service.getMessage(message.getId());
+        Message result = service.getMessage(messageId);
 
         assertThat(result).isNotNull();
-        assertThat(result.getContent()).isEqualTo(message.getContent());
+        assertThat(result.getContent()).isEqualTo(content);
         assertThat(result.getTime()).isGreaterThan(0);
         assertThat(result.getDeleted()).isFalse();
     }
@@ -59,35 +64,41 @@ public class MessageServiceTests {
         String george = "george";
         String elaine = "elaine";
 
-        Message shirtButton = service.sendPrivateMessage(MessageDTO.builder()
+        String shirtButtonId = service.sendPrivateMessage(MessageDTO.builder()
                 .from(jerry)
                 .to(george)
                 .content("See, now, to me, that button is in the worst possible spot.")
                 .build());
 
-        Message really = service.sendPrivateMessage(MessageDTO.builder()
+        String reallyId = service.sendPrivateMessage(MessageDTO.builder()
                 .from(george)
                 .to(jerry)
                 .content("Really?")
                 .build());
 
-        Message keyButton = service.sendPrivateMessage(MessageDTO.builder()
+        String keyButtonId = service.sendPrivateMessage(MessageDTO.builder()
                 .from(jerry)
                 .to(george)
                 .content("Oh yeah. The second button is the key button. It literally makes or breaks the shirt. Look at it: it's too high, it's in no-man's land.")
                 .build());
 
-        Message saturday = service.sendPrivateMessage(MessageDTO.builder()
+        String saturdayId = service.sendPrivateMessage(MessageDTO.builder()
                 .from(jerry)
                 .to(elaine)
                 .content("Why do I always have the feeling that everybody's doing something better than me on Saturday afternoons?")
                 .build());
 
-        Message diner = service.sendPrivateMessage(MessageDTO.builder()
+        String dinerId = service.sendPrivateMessage(MessageDTO.builder()
                 .from(george)
                 .to(elaine)
                 .content("So how long did you live there?")
                 .build());
+
+        Message shirtButton = service.getMessage(shirtButtonId);
+        Message really = service.getMessage(reallyId);
+        Message keyButton = service.getMessage(keyButtonId);
+        Message saturday = service.getMessage(saturdayId);
+        Message diner = service.getMessage(dinerId);
 
         Page<Message> conversation = service.getPrivateChatConversation(jerry, george, 0);
 
@@ -96,7 +107,7 @@ public class MessageServiceTests {
 
         int i = 0;
         // the returned message order should be oldest -> newest
-        List<String> messageIds = List.of(keyButton.getId(), really.getId(), shirtButton.getId());
+        List<String> messageIds = List.of(shirtButtonId, reallyId, keyButtonId, saturdayId, dinerId);
         for (Message message : conversation) {
             assertThat(message.getId()).isEqualTo(messageIds.get(i));
             i++;
@@ -110,7 +121,7 @@ public class MessageServiceTests {
         String brian = "brian-service";
 
 
-        Message fromTimV1 = service.sendPrivateMessage(MessageDTO.builder()
+        String fromTimV1 = service.sendPrivateMessage(MessageDTO.builder()
                 .from(tim)
                 .to(phil)
                 .content("Oi Phil.")
@@ -128,20 +139,20 @@ public class MessageServiceTests {
         Map<String, Long> zeroUnreadMessages = service.getUnreadMessageCounts(phil);
         assertThat(zeroUnreadMessages.size()).isEqualTo(0);
 
-        // get some more messages
-        Message fromTimV2 = service.sendPrivateMessage(MessageDTO.builder()
+        // send some more messages
+        String fromTimV2 = service.sendPrivateMessage(MessageDTO.builder()
                 .from(tim)
                 .to(phil)
                 .content("Are you done with that messenger yet?")
                 .build());
 
-        Message fromTimV2Again = service.sendPrivateMessage(MessageDTO.builder()
+        String fromTimV2Again = service.sendPrivateMessage(MessageDTO.builder()
                 .from(tim)
                 .to(phil)
                 .content("Please start sleeping normal.")
                 .build());
 
-        Message fromBrian = service.sendPrivateMessage(MessageDTO.builder()
+        String fromBrian = service.sendPrivateMessage(MessageDTO.builder()
                 .from(brian)
                 .to(phil)
                 .content("ADT")
@@ -167,7 +178,7 @@ public class MessageServiceTests {
         assertThat(oneUnreadMessageFromBrian.get(brian)).isEqualTo(1);
 
         // add tim's message again (no need to verify this time around)
-        Message fromTimV3 = service.sendPrivateMessage(MessageDTO.builder()
+        String fromTimV3 = service.sendPrivateMessage(MessageDTO.builder()
                 .from(tim)
                 .to(phil)
                 .content("Goodbye.")

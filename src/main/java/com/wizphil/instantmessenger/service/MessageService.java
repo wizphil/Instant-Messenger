@@ -105,12 +105,13 @@ public class MessageService {
         return messageCache.getGroupConversationBeforeTime(groupId, beforeTime);
     }
 
-    public Message sendPrivateMessage(MessageDTO messageDTO) {
+    public String sendPrivateMessage(MessageDTO messageDTO) {
         // validateMessage will validate fromId
         validateMessage(messageDTO);
 
         // validating toId is done here, because a Message can be for a user or for a group
         String toId = messageDTO.getTo();
+        String fromId = messageDTO.getFrom();
         userService.validateUserEnabled(toId);
 
         String conversationId = getConversationId(messageDTO.getFrom(), toId);
@@ -130,7 +131,10 @@ public class MessageService {
 
         sessionService.sendMessageToUser(toId, new MessageWrapperDTO(MessageCategory.DirectMessage, message));
 
-        return message;
+        // send to yourself in case there are other sessions open
+        sessionService.sendMessageToUser(fromId, new MessageWrapperDTO(MessageCategory.DirectMessage, message));
+
+        return message.getId();
     }
 
     public GroupMessage sendGroupMessage(MessageDTO messageDTO) {
@@ -150,7 +154,7 @@ public class MessageService {
 
         groupMessage = messageCache.createGroupMessage(groupMessage);
 
-        sessionService.sendMessageToUsers(group.getUserIds(), new MessageWrapperDTO(MessageCategory.DirectMessage, groupMessage));
+        sessionService.sendMessageToUsers(group.getUserIds(), new MessageWrapperDTO(MessageCategory.GroupMessage, groupMessage));
 
         return groupMessage;
     }

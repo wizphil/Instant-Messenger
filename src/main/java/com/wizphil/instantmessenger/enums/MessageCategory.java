@@ -2,6 +2,7 @@ package com.wizphil.instantmessenger.enums;
 
 public enum MessageCategory {
     DirectMessage,
+    GroupMessage,
     UserTypingPing,
     GroupTypingPing,
     NewGroup,

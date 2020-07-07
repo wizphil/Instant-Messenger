@@ -7,7 +7,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
 
 public interface MessageRepository extends MongoRepository<Message, String> {
-    @Query(value = "{ conversationId: ?0, time: { $lte: ?1 }, deleted: false }",
+    @Query(value = "{ conversationId: ?0, time: { $lt: ?1 }, deleted: false }",
             sort = "{ time: -1 }",
             fields = "{_id : 1, to: 1, from: 1, content: 1, time: 1}")
     Page<Message> findConversationBeforeTime(String conversationId, long beforeTime, Pageable pageable);

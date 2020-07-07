@@ -26,7 +26,7 @@ public interface IMessageController {
 
     void sendIsTypingToGroup(@PathVariable("fromId") String fromId, @PathVariable("groupId") String groupId);
 
-    Message sendPrivateMessage(@RequestBody MessageDTO messageDTO) throws InvalidEntityException, DuplicateEntityException, RepositoryException, InvalidEntityException;
+    String sendPrivateMessage(@RequestBody MessageDTO messageDTO) throws InvalidEntityException, DuplicateEntityException, RepositoryException, InvalidEntityException;
 
     GroupMessage sendGroupMessage(@RequestBody MessageDTO messageDTO) throws InvalidEntityException, DuplicateEntityException, RepositoryException, InvalidEntityException;
 

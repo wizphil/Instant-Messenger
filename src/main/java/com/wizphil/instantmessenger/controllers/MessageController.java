@@ -63,7 +63,7 @@ public class MessageController implements IMessageController {
 
     @Override
     @PostMapping("/user")
-    public Message sendPrivateMessage(@RequestBody MessageDTO messageDTO) {
+    public String sendPrivateMessage(@RequestBody MessageDTO messageDTO) {
         return messageService.sendPrivateMessage(messageDTO);
     }
 
